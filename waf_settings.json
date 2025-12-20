@@ -1,0 +1,21 @@
+{
+  "rate_limiting": {
+    "enabled": true,
+    "max_requests": 100,
+    "window_seconds": 60,
+    "block_time": 5
+  },
+  "ml_model": {
+    "enabled": true,
+    "confidence_threshold": 1
+  },
+  "plugins": {
+    "block_admin": true,
+    "block_ip": true,
+    "block_user_agent": true
+  },
+  "rules": {
+    "enabled": true,
+    "auto_update": false
+  }
+}

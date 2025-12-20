@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+
+# Datasets - exclude all dataset files and folders
+waf/Datasets/
+*.csv
+*.xml
+*.xlsx
+*.xls
+
+# Model files - exclude all trained models
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.h5
+*.hdf5
+*.npz
+*.model
+*.ckpt
+*.safetensors
+
+# Model directories
+waf/ml_model/**/*.pkl
+waf/ml_model/**/*.joblib
+waf/Training/*.pkl
+waf/Training/*.joblib
+waf/Training/*.npz
+
+# Large JSON files in Preprocessing (dataset files)
+waf/Preprocessing/*.json
+# Keep configuration JSON files
+!waf_settings.json
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
