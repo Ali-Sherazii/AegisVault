@@ -1,8 +1,5 @@
 # AI Web Application Firewall (WAF) Project
-
-This is the basic structure of the firewall project we will be working on.  
-*The data files used to train the RandomForest model are not yet added due to size constraints.*
-
+For the detailed analysis of the project AegisVault kindly refer to the Report pdf.
 ---
 
 ## Setup Instructions
