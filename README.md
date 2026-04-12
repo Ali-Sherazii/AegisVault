@@ -3,6 +3,7 @@
 **A Machine Learning Based Web Application Firewall**
 
 AegisVault is an intelligent, layered Web Application Firewall (WAF) that combines traditional rule-based security with trained machine learning models to detect and block malicious HTTP traffic in real time. It operates as a reverse proxy, inspecting every incoming request before it reaches the backend application.
+
 <img width="1403" height="590" alt="image" src="https://github.com/user-attachments/assets/0e122cd4-3164-423d-8f0a-acbd21df41d3" />
 
 <img width="865" height="478" alt="image" src="https://github.com/user-attachments/assets/6e62d03d-1d35-4c09-b037-1ba042e6ad7d" />
