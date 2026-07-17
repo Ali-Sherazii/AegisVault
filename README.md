@@ -22,6 +22,7 @@ AegisVault is an intelligent, layered Web Application Firewall (WAF) that combin
 - [ML Models](#ml-models)
 - [Dataset](#dataset)
 - [Model Performance](#model-performance)
+- [Model Card](#model-card)
 - [Getting Started](#getting-started)
 - [Live Demo](#live-demo)
 - [Testing](#testing)
@@ -30,6 +31,7 @@ AegisVault is an intelligent, layered Web Application Firewall (WAF) that combin
 - [Project Structure](#project-structure)
 - [API Endpoints](#api-endpoints)
 - [Industry Standards](#industry-standards)
+- [Future Work](#future-work)
 
 ---
 
@@ -58,33 +60,44 @@ AegisVault follows a three-tier architectural design:
 
 The WAF intercepts all HTTP traffic on port 5000, applies a multi-stage security pipeline, and forwards allowed requests to the backend application on port 8000.
 
+```mermaid
+flowchart LR
+    subgraph Presentation
+        D[Admin Dashboard<br/>:5001]
+    end
+    subgraph Application
+        W[WAF Reverse Proxy<br/>:5000]
+    end
+    subgraph Data
+        M[(MongoDB<br/>:27017)]
+    end
+    B[Backend App<br/>:8000]
+
+    Client -->|HTTP request| W
+    W -->|allowed| B
+    W -->|log every request| M
+    D <-->|read/write settings, rules, stats| M
+    D -.->|paste payload, see decision| W
+```
+
 ### Decision Pipeline
 
 Every request passes through the following stages in order:
 
-```
-HTTP Request
-     │
-     ▼
-IP Block Check  ──► Blocked? ──► HTTP 429
-     │
-     ▼
-Rate Limiting   ──► Exceeded? ──► Block IP + HTTP 429
-     │
-     ▼
-Plugin Checks   ──► Blocked? ──► HTTP 403
-     │
-     ▼
-Rule Engine     ──► Matched? ──► HTTP 403
-     │
-     ▼
-ML Classifier   ──► Attack? ──► HTTP 403
-     │
-     ▼
-Log to MongoDB
-     │
-     ▼
-Forward to Backend
+```mermaid
+flowchart TD
+    A[HTTP Request] --> B{IP Blocked?}
+    B -- yes --> B1[HTTP 429]
+    B -- no --> C{Rate limit exceeded?}
+    C -- yes --> C1[Block IP + HTTP 429]
+    C -- no --> D{Plugin match?}
+    D -- yes --> D1[HTTP 403]
+    D -- no --> E{Rule match?}
+    E -- yes --> E1[HTTP 403]
+    E -- no --> F{ML: attack?}
+    F -- yes --> F1[HTTP 403]
+    F -- no --> G[Log to MongoDB]
+    G --> H[Forward to Backend]
 ```
 
 ---
@@ -108,10 +121,10 @@ Forward to Backend
 
 Processes request text derived from the URL, query string, body parameters, and selected headers (Cookie, User-Agent, Accept-Encoding, Accept-Language). Applies iterative URL decoding to expose encoded payloads before TF-IDF feature extraction.
 
-Supports three serialized models:
-- `predictor.joblib` — SVM
+Supports three serialized models (`ACTIVE_MODEL_FILE` env var selects which one loads):
+- `predictor_svc.joblib` — SVM
 - `predictor_rf.joblib` — Random Forest
-- `predictor_lr.joblib` — Logistic Regression
+- `predictor_lr.joblib` — Logistic Regression (deployed by default)
 
 ### Rate Limiting
 
@@ -216,6 +229,32 @@ Early testing with only the ECML/PKDD dataset produced a 23%+ false positive rat
 
 ---
 
+## Model Card
+
+**Intended use:** Real-time classification of HTTP request text (URL, query string, body, and select headers) into
+one of five classes — `valid`, `xss`, `sqli`, `path-traversal`, `cmdi` — as one layer of a multi-layer WAF. Not
+intended to be the sole line of defense; it runs after IP blocking, rate limiting, plugin checks, and the rule
+engine, and its output is gated by a configurable confidence threshold (default `0.7`).
+
+**Training data:** ECML/PKDD 2007 (XML), HTTPParams (CSV), and an XSS-specific dataset (CSV) — see
+[Dataset](#dataset). 90,253 samples total, 75/25 stratified split, `random_state=42`.
+
+**Metrics:** see [Model Performance](#model-performance) above — both the standard held-out test set and an
+independent real-world payload set. Logistic Regression is deployed by default; SVM and Random Forest are trained
+and tracked as MLflow runs alongside it for comparison.
+
+**Limitations and biases:**
+- Trained substantially on 2007-era attack patterns (ECML/PKDD) plus supplementary datasets assembled for this
+  project; it may underperform on novel obfuscation techniques or attack styles not represented in training data.
+- Character-level TF-IDF features mean the model is sensitive to lexical similarity, not semantic understanding —
+  sufficiently novel payloads that don't share character n-grams with training attacks can evade detection.
+- Benign-traffic diversity was the single biggest lever on false-positive rate (23% → 3.2%, see
+  [Why Multiple Sources?](#why-multiple-sources)); production traffic patterns not resembling the benign training
+  samples (e.g. unusual but legitimate API clients) are the most likely source of false positives.
+- No adversarial robustness testing has been performed against inputs specifically crafted to evade this model.
+
+---
+
 ## Getting Started
 
 ### Run with Docker (recommended)
@@ -245,10 +284,10 @@ pip install -r requirements.txt
 
 ```bash
 # Start the backend application
-python backend/app.py          # Runs on port 8000
+python backend_app/app.py      # Runs on port 8000
 
 # Start the WAF reverse proxy
-python waf/waf.py              # Runs on port 5000
+python waf/app.py              # Runs on port 5000
 
 # Start the dashboard
 python waf/dashboard.py        # Runs on port 5001
@@ -283,17 +322,21 @@ the drift monitor (see [Monitoring](#monitoring)) compares live traffic against.
 
 ### Configuration
 
-WAF behavior is configured in `waf_settings.json`:
+WAF behavior is configured in `waf_settings.json` (hot-reloaded every request — no restart needed — and editable
+live from the dashboard's Settings tab):
 
 ```json
 {
-  "max_requests": 100,
-  "window_seconds": 60,
-  "block_time": 300,
-  "ml_confidence_threshold": 0.7,
-  "active_model": "lr"
+  "rate_limiting": { "enabled": true, "max_requests": 100, "window_seconds": 60, "block_time": 5 },
+  "ml_model": { "enabled": true, "confidence_threshold": 0.7 },
+  "plugins": { "block_admin": true, "block_ip": true, "block_user_agent": true },
+  "rules": { "enabled": true, "auto_update": false }
 }
 ```
+
+Infrastructure config (ports, Mongo URI, backend URL, which `.joblib` file to load) is environment-variable driven
+instead — see `docker-compose.yml` for the full list (`WAF_PORT`, `DASHBOARD_PORT`, `BACKEND_PORT`, `BACKEND_URL`,
+`MONGODB_URI`, `WAF_SETTINGS_FILE`, `ACTIVE_MODEL_FILE`).
 
 ---
 
@@ -368,25 +411,38 @@ the same Dockerfile used locally. Render has no native MongoDB add-on, so it nee
 ```
 AegisVault/
 ├── waf/
-│   ├── waf.py                  # Main WAF reverse proxy (port 5000)
-│   ├── dashboard.py            # Admin dashboard (port 5001)
-│   ├── predictor.joblib        # SVM model
-│   ├── predictor_lr.joblib     # Logistic Regression model
-│   ├── predictor_rf.joblib     # Random Forest model
-│   ├── waf_settings.json       # WAF configuration
-│   ├── rules/                  # YAML rule definitions
-│   └── plugins/                # Modular security plugins
-├── backend/
-│   └── app.py                  # Protected backend app (port 8000)
-├── notebooks/
-│   ├── MergeAndClean.ipynb
-│   ├── TrainTestSplit.ipynb
-│   ├── TrainSVM.ipynb
-│   ├── TrainLR.ipynb
-│   └── TrainRF.ipynb
-├── data/
-│   └── complete_clean.json     # Merged, cleaned dataset
-└── requirements.txt
+│   ├── app.py                      # WAF reverse proxy entrypoint (:5000)
+│   ├── dashboard.py                 # Admin dashboard + demo entrypoint (:5001)
+│   ├── proxy.py                     # forward_to_backend() used by app.py
+│   ├── rules/
+│   │   ├── rule_engine.py
+│   │   └── rules.yaml
+│   ├── plugins/                     # block_admin, block_ip, block_user_agent
+│   ├── database/
+│   │   └── mongodb_logger.py
+│   ├── monitoring/
+│   │   └── drift.py                 # PSI-based drift monitoring
+│   ├── ml_model/waf_text/
+│   │   ├── predictor.py             # WafPredictor (inference wrapper)
+│   │   ├── predictor_{svc,lr,rf}.joblib  # gitignored - produced by train.py
+│   │   └── baseline_stats.json      # gitignored - produced by train.py
+│   ├── Preprocessing/                # exploratory parsing notebooks (reference)
+│   ├── Training/
+│   │   ├── preprocess.py             # reproducible dataset merge/clean
+│   │   └── train.py                  # reproducible training + MLflow logging
+│   ├── Datasets/                     # gitignored - raw + merged datasets go here
+│   ├── templates/                    # dashboard.html, demo.html
+│   └── static/                       # css/js for the dashboard
+├── backend_app/
+│   └── app.py                        # protected demo backend (:8000)
+├── tests/                            # pytest suite (mongomock-backed)
+├── Dockerfile
+├── docker-compose.yml
+├── render.yaml                       # Render Blueprint
+├── .github/workflows/ci.yml
+├── waf_settings.json                 # runtime WAF configuration
+├── requirements.txt                  # production dependencies
+└── requirements-dev.txt              # + pytest, mongomock, mlflow
 ```
 
 ---
@@ -409,6 +465,9 @@ The dashboard exposes the following REST API on port 5001:
 | DELETE | `/api/delete-rule/<rule_id>` | Delete a rule |
 | GET | `/api/ml-models` | ML model information |
 | GET | `/api/analytics` | Analytics data |
+| GET | `/api/model-health` | Drift score (PSI), confidence histogram, block-rate trend |
+| GET | `/demo` | Live decision-pipeline visualizer page |
+| POST | `/api/demo-analyze` | Run a pasted payload through rules -> ML, return which layer caught it |
 
 ---
 
@@ -419,7 +478,20 @@ The dashboard exposes the following REST API on port 5001:
 - **Security Coverage:** Aligned with OWASP Top 10 categories (SQLi, XSS, path traversal, command injection)
 - **ML Deployment:** Offline training, joblib serialization, confidence-thresholded inference
 - **Database:** Structured MongoDB logs with timestamps for auditing and analysis; fallback logging on DB unavailability
-- **Reproducibility:** Shared `dataset.npz` split ensures all three models are evaluated on identical data partitions
+- **Reproducibility:** `waf/Training/train.py` uses a fixed `random_state=42` stratified split so all three models are trained and evaluated on identical data partitions, with every run logged to MLflow
+
+---
+
+## Future Work
+
+- **Automated retraining:** turn the manual drift-score-crosses-threshold trigger (see [Monitoring](#monitoring))
+  into a scheduled job that retrains via `waf/Training/train.py` and opens a PR with the new metrics for review.
+- **Adversarial robustness testing:** evaluate the classifier against payloads specifically crafted to evade
+  character-level TF-IDF features (e.g. mixed-encoding obfuscation, homoglyphs).
+- **Model registry:** promote MLflow's local run tracking to a registered-model workflow (stage transitions,
+  versioned rollback) instead of manually copying `.joblib` files.
+- **Multi-instance rate limiting:** the current sliding-window counter is per-IP via MongoDB, which already
+  supports horizontal scaling of the WAF proxy itself, but hasn't been load-tested at scale.
 
 ---
 
