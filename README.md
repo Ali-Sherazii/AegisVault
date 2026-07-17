@@ -211,11 +211,15 @@ Early testing with only the ECML/PKDD dataset produced a 23%+ false positive rat
 
 ### Standard Test Set (held-out from training data)
 
-| Model | Test Accuracy |
-|-------|--------------|
-| SVM | 99.6% |
-| Logistic Regression | 99.07% |
-| Random Forest | 98.9% |
+Reproduced end-to-end via `waf/Training/preprocess.py` + `train.py` on the full 90,253-sample dataset (75/25
+stratified split, `random_state=42`) — logged to MLflow, matching the original hyperparameter-search results within
+rounding:
+
+| Model | Test Accuracy | False Positive Rate |
+|-------|--------------|---------------------|
+| SVM | 99.56% | 0.08% |
+| Logistic Regression | 99.25% | 0.34% |
+| Random Forest | 98.93% | 0.03% |
 
 ### Real-World Test Set (independent external payloads)
 
@@ -266,6 +270,11 @@ docker-compose up
 ```
 
 This brings up MongoDB, the backend app (`:8000`), the WAF proxy (`:5000`), and the dashboard (`:5001`) with one command. All ports, the Mongo URI, the backend URL, and the active model file are configured via environment variables in `docker-compose.yml` — no hardcoding. `waf_settings.json` and the model directory are bind-mounted, so changing thresholds via the dashboard or dropping in a newly trained `.joblib` model doesn't require a rebuild.
+
+**Verified working end-to-end:** all 4 containers running, WAF proxy blocking SQLi via the rule engine and
+XSS/path-traversal/command-injection via the trained Logistic Regression model (99%+ confidence), benign traffic
+correctly forwarded to the backend, dashboard and `/demo` page serving, and `/api/model-health` reporting live
+drift data from real traffic.
 
 ### Prerequisites (manual/non-Docker run)
 
