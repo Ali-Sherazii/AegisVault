@@ -54,9 +54,14 @@ waf/Datasets/
 # Model directories
 waf/ml_model/**/*.pkl
 waf/ml_model/**/*.joblib
+waf/ml_model/**/baseline_stats.json
 waf/Training/*.pkl
 waf/Training/*.joblib
 waf/Training/*.npz
+
+# MLflow local tracking store/artifacts (waf/Training/train.py)
+mlruns/
+mlflow.db
 
 # Large JSON files in Preprocessing (dataset files)
 waf/Preprocessing/*.json
