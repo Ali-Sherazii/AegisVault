@@ -1,3 +1,8 @@
 *.npz filter=lfs diff=lfs merge=lfs -text
 *.pkl filter=lfs diff=lfs merge=lfs -text
 *.xml filter=lfs diff=lfs merge=lfs -text
+
+# Force LF endings for shell scripts so they run correctly inside Linux
+# containers regardless of the host OS/checkout settings (CRLF breaks the
+# shebang and produces "no such file or directory" in Docker).
+*.sh text eol=lf

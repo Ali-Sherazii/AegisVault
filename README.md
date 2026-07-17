@@ -212,7 +212,17 @@ Early testing with only the ECML/PKDD dataset produced a 23%+ false positive rat
 
 ## Getting Started
 
-### Prerequisites
+### Run with Docker (recommended)
+
+```bash
+git clone https://github.com/Ali-Sherazii/AegisVault.git
+cd AegisVault
+docker-compose up
+```
+
+This brings up MongoDB, the backend app (`:8000`), the WAF proxy (`:5000`), and the dashboard (`:5001`) with one command. All ports, the Mongo URI, the backend URL, and the active model file are configured via environment variables in `docker-compose.yml` — no hardcoding. `waf_settings.json` and the model directory are bind-mounted, so changing thresholds via the dashboard or dropping in a newly trained `.joblib` model doesn't require a rebuild.
+
+### Prerequisites (manual/non-Docker run)
 
 - Python 3.8+
 - MongoDB running on `localhost:27017`

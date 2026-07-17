@@ -1,11 +1,13 @@
 # mongo_logger.py
+import os
 from pymongo import MongoClient
 from datetime import datetime, timedelta, timezone
 import numpy as np
 
 
 class MongoLogger:
-    def __init__(self, uri="mongodb://localhost:27017", db_name="waf_logs", collection_name="requests"):
+    def __init__(self, uri=None, db_name="waf_logs", collection_name="requests"):
+        uri = uri or os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
         self.client = MongoClient(uri)
         self.collection = self.client[db_name][collection_name]
 

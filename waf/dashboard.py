@@ -118,14 +118,18 @@ WAF_SETTINGS = {
 }
 
 # Load settings from file if exists
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'waf_settings.json')
+SETTINGS_FILE = os.environ.get(
+    "WAF_SETTINGS_FILE",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), 'waf_settings.json')
+)
 if os.path.exists(SETTINGS_FILE):
     with open(SETTINGS_FILE, 'r') as f:
         WAF_SETTINGS.update(json.load(f))
 
 # Initialize ML text predictor
 _MODELS_DIR = os.path.join(os.path.dirname(__file__), "ml_model")
-_TEXT_MODEL_PATH = os.path.join(_MODELS_DIR, "waf_text", "predictor_svc.joblib")
+_ACTIVE_MODEL_FILE = os.environ.get("ACTIVE_MODEL_FILE", "predictor_svc.joblib")
+_TEXT_MODEL_PATH = os.path.join(_MODELS_DIR, "waf_text", _ACTIVE_MODEL_FILE)
 _text_predictor = None
 try:
     if os.path.exists(_TEXT_MODEL_PATH):
@@ -863,5 +867,10 @@ stats_thread = threading.Thread(target=broadcast_stats, daemon=True)
 stats_thread.start()
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5002, debug=False) 
+    socketio.run(
+        app,
+        host=os.environ.get('DASHBOARD_HOST', '0.0.0.0'),
+        port=int(os.environ.get('DASHBOARD_PORT', 5001)),
+        debug=False,
+    )
 

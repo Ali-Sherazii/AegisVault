@@ -29,9 +29,6 @@ except Exception as e:
     mongo_logger = DummyMongoLogger()
 
 app = Flask(__name__)
-MAX_REQUESTS = 2000      # requests
-WINDOW = 60           # seconds
-BLOCK_TIME = 10       # seconds
 
 PLUGIN_FOLDER = os.path.join(os.path.dirname(__file__), "plugins")
 plugins = []
@@ -50,7 +47,8 @@ for fname in os.listdir(PLUGIN_FOLDER):
 
 # Initialize new text-based WAF predictor (if available)
 _MODELS_DIR = os.path.join(os.path.dirname(__file__), "ml_model")
-_TEXT_MODEL_PATH = os.path.join(_MODELS_DIR, "waf_text", "predictor_svc.joblib")
+_ACTIVE_MODEL_FILE = os.environ.get("ACTIVE_MODEL_FILE", "predictor_svc.joblib")
+_TEXT_MODEL_PATH = os.path.join(_MODELS_DIR, "waf_text", _ACTIVE_MODEL_FILE)
 _text_predictor = None
 try:
     if os.path.exists(_TEXT_MODEL_PATH):
@@ -69,7 +67,10 @@ def _init_current_model():
 _init_current_model()
 
 # Settings handling (shared with dashboard)
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'waf_settings.json')
+SETTINGS_FILE = os.environ.get(
+    "WAF_SETTINGS_FILE",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), 'waf_settings.json')
+)
 
 def load_waf_settings():
     try:
@@ -312,4 +313,4 @@ def waf_filter():
 def proxy(path):
     return forward_to_backend(path)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001)
+    app.run(host=os.environ.get("WAF_HOST", "0.0.0.0"), port=int(os.environ.get("WAF_PORT", 5000)))

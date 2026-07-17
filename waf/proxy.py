@@ -14,7 +14,8 @@ from ml_model.waf_text.predictor import WafPredictor
 # Initialize new text-based WAF predictor (if available)
 _MODELS_DIR = os.path.join(os.path.dirname(__file__), "ml_model")
 # Prefer the same text model used by the main WAF app
-_TEXT_MODEL_PATH = os.path.join(_MODELS_DIR, "waf_text", "predictor_svc.joblib")
+_ACTIVE_MODEL_FILE = os.environ.get("ACTIVE_MODEL_FILE", "predictor_svc.joblib")
+_TEXT_MODEL_PATH = os.path.join(_MODELS_DIR, "waf_text", _ACTIVE_MODEL_FILE)
 _text_predictor = None
 try:
     if os.path.exists(_TEXT_MODEL_PATH):
@@ -53,8 +54,10 @@ class _TextPredictionResult:
     def to_dict(self):
         return {"threats": self.threats, "mode": "text", "confidence_scores": self.confidence_scores}
 
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
+
 def forward_to_backend(path):
-    backend_url = f"http://localhost:8000/{path}"
+    backend_url = f"{BACKEND_URL}/{path}"
     try:
         resp = requests.request(
             method=request.method,
@@ -73,7 +76,10 @@ def forward_to_backend(path):
 app = Flask(__name__)
 
 # Settings handling (shared with dashboard)
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'waf_settings.json')
+SETTINGS_FILE = os.environ.get(
+    "WAF_SETTINGS_FILE",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), 'waf_settings.json')
+)
 
 def load_waf_settings():
     try:
