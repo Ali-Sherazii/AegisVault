@@ -11,6 +11,7 @@ let urlsByLayerCharts = { ml: null, rules: null, plugins: null };
 let pluginBlocksChart;
 let layerComparisonChart;
 let layerPieChart;
+let confidenceHistogramChart;
 let currentPage = 1;
 let currentSettings = {};
 let currentFilters = {
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', function () {
     loadMLModels();
     loadBlockedIPs();
     loadAnalytics();
+    loadModelHealth();
 
     // Set up event listeners
     setupEventListeners();
@@ -989,6 +991,109 @@ function updateAnalyticsChart(dailyStats) {
                     borderWidth: 1,
                     callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue}` }
                 }
+            }
+        }
+    });
+}
+
+// Load model health / drift monitoring
+function loadModelHealth() {
+    fetch('/api/model-health')
+        .then(response => response.json())
+        .then(data => {
+            const el = document.getElementById('model-health-active-model');
+            if (el) el.textContent = data.active_model_file || '-';
+            updateModelHealthDrift(data.drift || { available: false });
+        })
+        .catch(error => {
+            console.error('Error loading model health:', error);
+        });
+}
+
+function updateModelHealthDrift(drift) {
+    const unavailableBox = document.getElementById('model-health-unavailable');
+    const contentBox = document.getElementById('model-health-content');
+    const unavailableReason = document.getElementById('model-health-unavailable-reason');
+
+    if (!drift.available) {
+        if (unavailableBox) unavailableBox.classList.remove('d-none');
+        if (contentBox) contentBox.classList.add('d-none');
+        if (unavailableReason) unavailableReason.textContent = drift.reason || 'Model health data is not available yet.';
+        return;
+    }
+
+    if (unavailableBox) unavailableBox.classList.add('d-none');
+    if (contentBox) contentBox.classList.remove('d-none');
+
+    setText('drift-score', drift.psi.toFixed(3));
+    setText('drift-flag-label', drift.drift_flag ? `Drift detected (> ${drift.psi_threshold})` : 'Stable');
+    const driftCard = document.getElementById('drift-score-card');
+    if (driftCard) {
+        driftCard.classList.toggle('danger', !!drift.drift_flag);
+        driftCard.classList.toggle('success', !drift.drift_flag);
+    }
+
+    setText('current-block-rate', `${(drift.block_rate * 100).toFixed(1)}%`);
+    const baselineRate = drift.baseline_block_rate;
+    setText('baseline-block-rate', `Baseline: ${baselineRate != null ? (baselineRate * 100).toFixed(1) + '%' : '-'}`);
+    setText('model-health-sample-size', drift.sample_size);
+    setText('model-health-window', `Last ${drift.window_hours}h`);
+
+    updateConfidenceHistogramChart(drift.confidence_histogram, drift.baseline_confidence_histogram);
+}
+
+function setText(elementId, value) {
+    const el = document.getElementById(elementId);
+    if (el) el.textContent = value;
+}
+
+function updateConfidenceHistogramChart(current, baseline) {
+    const ctx = document.getElementById('confidenceHistogramChart');
+    if (!ctx) return;
+    if (confidenceHistogramChart) confidenceHistogramChart.destroy();
+
+    const nBins = (current || baseline || []).length;
+    const labels = Array.from({ length: nBins }, (_, i) => `${(i * 100 / nBins).toFixed(0)}-${((i + 1) * 100 / nBins).toFixed(0)}%`);
+
+    confidenceHistogramChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Training baseline',
+                    data: baseline || [],
+                    backgroundColor: 'rgba(20, 184, 166, 0.4)',
+                    borderColor: '#14b8a6',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Recent traffic',
+                    data: current || [],
+                    backgroundColor: 'rgba(239, 68, 68, 0.4)',
+                    borderColor: '#ef4444',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Request count', color: '#cbd5e1' },
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                },
+                x: {
+                    title: { display: true, text: 'Confidence bucket', color: '#cbd5e1' },
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                }
+            },
+            plugins: {
+                legend: { position: 'top', labels: { color: '#cbd5e1' } }
             }
         }
     });

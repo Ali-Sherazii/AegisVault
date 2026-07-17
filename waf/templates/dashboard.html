@@ -115,6 +115,12 @@
                                 Analytics
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#model-health" data-bs-toggle="tab">
+                                <i class="fas fa-heartbeat me-2"></i>
+                                Model Health
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </nav>
@@ -814,6 +820,81 @@
                                         <p class="text-muted small">Overall blocks by each protection layer. Helps spot
                                             which layer is most active.</p>
                                         <canvas id="layerComparisonChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Model Health Tab -->
+                    <div class="tab-pane fade" id="model-health">
+                        <div
+                            class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Model Health</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button type="button" class="btn btn-sm btn-primary" onclick="loadModelHealth()">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-muted small">
+                            Attack patterns evolve over time (concept drift). This compares the confidence-score
+                            distribution of recent traffic against the distribution captured when the active model
+                            was trained, using the Population Stability Index (PSI).
+                        </p>
+
+                        <div id="model-health-unavailable" class="alert alert-warning d-none" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <span id="model-health-unavailable-reason">No baseline stats available yet.</span>
+                        </div>
+
+                        <div id="model-health-content">
+                            <div class="row mb-4">
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="stat-card" id="drift-score-card">
+                                        <i class="fas fa-wave-square stat-icon"></i>
+                                        <div class="stat-number" id="drift-score">-</div>
+                                        <div class="stat-label">Drift Score (PSI)</div>
+                                        <small class="text-muted" id="drift-flag-label">Unknown</small>
+                                    </div>
+                                </div>
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="stat-card">
+                                        <i class="fas fa-percentage stat-icon"></i>
+                                        <div class="stat-number" id="current-block-rate">-</div>
+                                        <div class="stat-label">Current Block Rate</div>
+                                        <small class="text-muted" id="baseline-block-rate">Baseline: -</small>
+                                    </div>
+                                </div>
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="stat-card">
+                                        <i class="fas fa-database stat-icon"></i>
+                                        <div class="stat-number" id="model-health-sample-size">0</div>
+                                        <div class="stat-label">Requests Sampled</div>
+                                        <small class="text-muted" id="model-health-window">Last 24h</small>
+                                    </div>
+                                </div>
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="stat-card">
+                                        <i class="fas fa-brain stat-icon"></i>
+                                        <div class="stat-number" id="model-health-active-model">-</div>
+                                        <div class="stat-label">Active Model File</div>
+                                        <small class="text-muted">Used for this comparison</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card shadow mb-4">
+                                        <div
+                                            class="card-header py-2 py-md-3 d-flex align-items-center justify-content-between">
+                                            <h6 class="m-0 font-weight-bold text-primary">Confidence Distribution:
+                                                Recent vs Training Baseline</h6>
+                                        </div>
+                                        <div class="card-body p-3 p-md-4" style="height: 320px;">
+                                            <canvas id="confidenceHistogramChart"></canvas>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

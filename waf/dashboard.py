@@ -10,6 +10,7 @@ import threading
 import time
 from database.mongodb_logger import MongoLogger
 from rules.rule_engine import RuleEngine
+from monitoring.drift import compute_drift
 # EnhancedMLModelManager is no longer used; relying on text models only
 import pandas as pd
 import numpy as np
@@ -541,6 +542,33 @@ def get_ml_models():
 def set_model(version):
     """Model switching via manager is not supported; using text models only."""
     return jsonify({'error': 'Model switching is not supported. Using text models only.'}), 400
+
+
+@app.route('/api/model-health')
+def get_model_health():
+    """Model health: block-rate trend, confidence distribution, and drift score.
+
+    Compares the confidence-score distribution of recent requests against the
+    baseline captured at training time (waf/Training/train.py) for whichever
+    model is currently active, using the Population Stability Index (PSI).
+    """
+    try:
+        baseline_path = os.path.join(_MODELS_DIR, 'waf_text', 'baseline_stats.json')
+        baseline_stats = {}
+        if os.path.exists(baseline_path):
+            with open(baseline_path, 'r') as f:
+                baseline_stats = json.load(f)
+
+        drift = compute_drift(mongo_logger.collection, baseline_stats, _ACTIVE_MODEL_FILE)
+        block_rate_trend = get_analytics().get_json().get('daily_stats', {})
+
+        return jsonify({
+            'active_model_file': _ACTIVE_MODEL_FILE,
+            'block_rate_trend': block_rate_trend,
+            'drift': drift,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/analytics')
 def get_analytics():

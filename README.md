@@ -24,6 +24,7 @@ AegisVault is an intelligent, layered Web Application Firewall (WAF) that combin
 - [Model Performance](#model-performance)
 - [Getting Started](#getting-started)
 - [Testing](#testing)
+- [Monitoring](#monitoring)
 - [Project Structure](#project-structure)
 - [API Endpoints](#api-endpoints)
 - [Industry Standards](#industry-standards)
@@ -253,13 +254,30 @@ python waf/dashboard.py        # Runs on port 5001
 
 ### Training Models
 
-Training notebooks are located in the `notebooks/` directory. Run them in order:
+The exploratory notebooks (`waf/Preprocessing/*.ipynb`, `waf/Training/*.ipynb`) are kept for reference, but the
+reproducible entrypoint is two scripts using paths relative to the repo (no hardcoded machine-specific paths):
 
-1. `MergeAndClean.ipynb` — parse, clean, and merge raw datasets into `complete_clean.json`
-2. `TrainTestSplit.ipynb` — create the stratified split and save to `dataset.npz`
-3. `TrainSVM.ipynb` — grid search and train SVM, export `predictor.joblib`
-4. `TrainLR.ipynb` — grid search and train Logistic Regression, export `predictor_lr.joblib`
-5. `TrainRF.ipynb` — grid search and train Random Forest, export `predictor_rf.joblib`
+```bash
+pip install -r requirements-dev.txt
+
+# 1. Place the 4 raw dataset files in waf/Datasets/:
+#    learning_dataset.xml, payload_train.csv, payload_test.csv, XSS_dataset.csv
+
+# 2. Parse + merge + clean -> waf/Datasets/complete_clean.json
+python waf/Training/preprocess.py
+
+# 3. Stratified 75/25 split, train SVM/LR/RF, log everything to MLflow,
+#    export predictor_{svc,lr,rf}.joblib into waf/ml_model/waf_text/
+python waf/Training/train.py
+
+# Inspect the runs (params, metrics, artifacts) side by side:
+mlflow ui
+```
+
+`train.py` uses the hyperparameters already validated via grid search (see [Hyperparameter Search Results](#ml-models)),
+logs accuracy/precision/recall/F1 per class plus the false-positive rate for each of the three models as separate
+MLflow runs, and writes `waf/ml_model/waf_text/baseline_stats.json` — the confidence-score distribution snapshot
+the drift monitor (see [Monitoring](#monitoring)) compares live traffic against.
 
 ### Configuration
 
@@ -289,6 +307,26 @@ The suite (`tests/`) uses `mongomock` so it never needs a real MongoDB instance:
 - **`test_rules.py`** — known SQLi payloads and rule-matched scan patterns against `waf/rules/rules.yaml` assert a `403`; benign requests assert allowed. Also covers the plugin layer (`block_admin`, `block_user_agent`).
 - **`test_rate_limit.py`** — rate limit trips after N requests and returns `429`; a blocked IP short-circuits before rules/ML are evaluated.
 - **`test_ml_model.py`** — known XSS/path-traversal/CMDi payloads against the trained classifier. Automatically **skipped** until a `.joblib` model exists under `waf/ml_model/waf_text/` (see [Training Models](#training-models)), so the suite stays honest about what it can currently verify.
+
+---
+
+## Monitoring
+
+A WAF is a textbook case for concept drift: attack patterns evolve, so a model that scored 99% on its training-time
+test set can quietly degrade in production. Every request's ML confidence scores are already logged to MongoDB
+(`waf/database/mongodb_logger.py`); the **Model Health** panel in the dashboard (`/api/model-health`) compares the
+confidence-score distribution of recent traffic against the distribution captured at training time
+(`waf/ml_model/waf_text/baseline_stats.json`, written by `waf/Training/train.py`) using the **Population Stability
+Index (PSI)** — see `waf/monitoring/drift.py`.
+
+The panel shows:
+- Current vs. baseline confidence-score histograms
+- Current vs. baseline block rate
+- A PSI drift score, flagged once it crosses a configurable threshold (default `0.2`)
+
+**Retraining trigger (manual for now):** retrain (`waf/Training/train.py`) when the drift score exceeds the
+threshold, or when false-positive complaints spike in the request log — whichever comes first. Automating this
+(e.g. a scheduled job that retrains and opens a PR when PSI crosses the threshold) is listed under Future Work.
 
 ---
 
