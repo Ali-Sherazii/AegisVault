@@ -1,0 +1,55 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec).
+#
+# Deploys all three AegisVault services from the same Dockerfile used
+# locally by docker-compose. Render has no native MongoDB add-on, so
+# MONGODB_URI must point at a MongoDB Atlas free-tier cluster you create
+# yourself and paste in as a secret (see README's "Deploying to Render").
+#
+# The dashboard alone (with its /demo decision-pipeline visualizer) is
+# enough for a public "paste a payload, see what catches it" demo link.
+# The waf + backend services are included for the full three-tier
+# architecture if you want the live reverse-proxy running too.
+
+services:
+  - type: web
+    name: aegisvault-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SERVICE
+        value: backend
+
+  - type: web
+    name: aegisvault-waf
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SERVICE
+        value: waf
+      - key: BACKEND_URL
+        # Fill in with the aegisvault-backend service's Render URL after its
+        # first deploy (Render assigns this URL; it isn't known ahead of
+        # time). e.g. https://aegisvault-backend.onrender.com
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: ACTIVE_MODEL_FILE
+        value: predictor_lr.joblib
+
+  - type: web
+    name: aegisvault-dashboard
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SERVICE
+        value: dashboard
+      - key: MONGODB_URI
+        sync: false
+      - key: ACTIVE_MODEL_FILE
+        value: predictor_lr.joblib

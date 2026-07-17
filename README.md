@@ -23,8 +23,10 @@ AegisVault is an intelligent, layered Web Application Firewall (WAF) that combin
 - [Dataset](#dataset)
 - [Model Performance](#model-performance)
 - [Getting Started](#getting-started)
+- [Live Demo](#live-demo)
 - [Testing](#testing)
 - [Monitoring](#monitoring)
+- [Deploying to Render](#deploying-to-render)
 - [Project Structure](#project-structure)
 - [API Endpoints](#api-endpoints)
 - [Industry Standards](#industry-standards)
@@ -295,6 +297,16 @@ WAF behavior is configured in `waf_settings.json`:
 
 ---
 
+## Live Demo
+
+**[Add your deployed URL here once live — see Deploying to Render below]**
+
+The dashboard includes a `/demo` page: paste a raw URL, query string, or payload and watch it run through the same
+decision pipeline live traffic goes through — which layer (rules, then the ML classifier) catches it, and the
+model's confidence score. Run it locally at `http://localhost:5001/demo` after `docker-compose up`.
+
+---
+
 ## Testing
 
 ```bash
@@ -327,6 +339,27 @@ The panel shows:
 **Retraining trigger (manual for now):** retrain (`waf/Training/train.py`) when the drift score exceeds the
 threshold, or when false-positive complaints spike in the request log — whichever comes first. Automating this
 (e.g. a scheduled job that retrains and opens a PR when PSI crosses the threshold) is listed under Future Work.
+
+---
+
+## Deploying to Render
+
+`render.yaml` is a [Render Blueprint](https://render.com/docs/blueprint-spec) that deploys all three services from
+the same Dockerfile used locally. Render has no native MongoDB add-on, so it needs a free
+[MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register) cluster:
+
+1. Create a free MongoDB Atlas cluster and copy its connection string (`mongodb+srv://...`).
+2. On Render, **New > Blueprint**, connect this repo. Render will read `render.yaml` and propose 3 services:
+   `aegisvault-backend`, `aegisvault-waf`, `aegisvault-dashboard`.
+3. Before/after the first deploy, set the secret env vars Render will prompt for (marked `sync: false` in
+   `render.yaml`):
+   - `aegisvault-waf` and `aegisvault-dashboard`: `MONGODB_URI` = your Atlas connection string.
+   - `aegisvault-waf`: `BACKEND_URL` = the `aegisvault-backend` service's Render URL (assigned after its first
+     deploy, e.g. `https://aegisvault-backend.onrender.com`).
+4. Deploy. The dashboard's public URL + `/demo` is what you share — that alone doesn't need a trained model to be
+   useful (rule-based blocking works out of the box), but for the ML layer to fire, bake a trained model into the
+   image first (train it via [Training Models](#training-models) — `.joblib` files aren't gitignored from the
+   Docker build context, only from git, so `docker build` picks them up if present when you build/push).
 
 ---
 

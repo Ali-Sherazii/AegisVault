@@ -28,18 +28,27 @@ class RuleEngine:
         query_string = request.query_string.decode("utf-8", errors="ignore") if request.query_string else ""
         body = request.get_data(as_text=True) or ""
 
-        def variants(text: str):
-            if not text:
-                return []
-            lower = text.lower()
-            unquoted = urllib.parse.unquote_plus(lower)
-            return [lower, unquoted]
-
         # Exclude headers to avoid false positives; include raw and URL-decoded lowercase variants
         haystacks = []
         for piece in [path_full, query_string, body]:
-            haystacks.extend(variants(piece))
+            haystacks.extend(self._variants(piece))
 
+        return self.evaluate_haystacks(haystacks)
+
+    def evaluate_text(self, text: str):
+        """Evaluate a single arbitrary string (not a live Flask request) against
+        the loaded rules, e.g. a payload pasted into the demo pipeline visualizer."""
+        return self.evaluate_haystacks(self._variants(text))
+
+    @staticmethod
+    def _variants(text: str):
+        if not text:
+            return []
+        lower = text.lower()
+        unquoted = urllib.parse.unquote_plus(lower)
+        return [lower, unquoted]
+
+    def evaluate_haystacks(self, haystacks):
         for rule in self.rules or []:
             action = (rule.get("action") or "").lower()
             pattern = rule.get("pattern")

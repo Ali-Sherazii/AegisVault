@@ -54,3 +54,35 @@ def waf_client(monkeypatch, tmp_path):
     with waf_app_module.app.test_client() as client:
         client.application_module = waf_app_module
         yield client
+
+
+@pytest.fixture(scope="module")
+def monkeypatch_module():
+    from _pytest.monkeypatch import MonkeyPatch
+    mp = MonkeyPatch()
+    yield mp
+    mp.undo()
+
+
+@pytest.fixture(scope="module")
+def dashboard_client(monkeypatch_module, tmp_path_factory):
+    """Flask test client for the dashboard app (waf/dashboard.py), imported
+    once per test module so its background stats thread isn't restarted
+    repeatedly."""
+    settings_file = tmp_path_factory.mktemp("dashboard_settings") / "waf_settings.json"
+    settings_file.write_text(json.dumps({
+        "rate_limiting": {"enabled": True, "max_requests": 100, "window_seconds": 60, "block_time": 5},
+        "ml_model": {"enabled": True, "confidence_threshold": 0.7},
+        "plugins": {"block_admin": True, "block_ip": True, "block_user_agent": True},
+        "rules": {"enabled": True, "auto_update": False},
+    }))
+    monkeypatch_module.setenv("WAF_SETTINGS_FILE", str(settings_file))
+    monkeypatch_module.setenv("MONGODB_URI", "mongodb://localhost:27017")
+
+    sys.modules.pop("dashboard", None)
+    import dashboard as dashboard_module  # waf/dashboard.py, importable via the sys.path setup above
+
+    dashboard_module.app.config.update(TESTING=True)
+    with dashboard_module.app.test_client() as client:
+        client.application_module = dashboard_module
+        yield client

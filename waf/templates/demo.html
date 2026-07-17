@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛡️ AegisVault - Live Decision Pipeline Demo</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/dashboard.css') }}" rel="stylesheet">
+
+    <style>
+        body {
+            padding: 2rem 1rem 4rem;
+        }
+
+        .demo-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .pipeline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .pipeline-stage {
+            flex: 1 1 140px;
+            text-align: center;
+            padding: 0.9rem 0.5rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .pipeline-stage i {
+            display: block;
+            font-size: 1.3rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .pipeline-stage.skipped {
+            opacity: 0.4;
+        }
+
+        .pipeline-stage.passed {
+            border-color: var(--accent-success);
+            color: var(--accent-success);
+        }
+
+        .pipeline-stage.caught {
+            border-color: var(--accent-danger);
+            color: var(--accent-danger);
+            background: rgba(239, 68, 68, 0.08);
+            box-shadow: 0 0 16px rgba(239, 68, 68, 0.25);
+        }
+
+        .example-btn {
+            margin: 0.2rem;
+        }
+
+        #result-panel {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="demo-container">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h3 mb-0"><i class="fas fa-vault me-2"></i>AegisVault — Live Decision Pipeline</h1>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Dashboard
+            </a>
+        </div>
+        <p class="text-muted">
+            Paste a raw request path, query string, or payload below and see exactly which layer of AegisVault's
+            decision pipeline would catch it — rules, then the ML classifier — and the model's confidence score.
+        </p>
+
+        <div class="mb-2">
+            <button class="btn btn-sm btn-outline-danger example-btn" data-example="/products?id=1=1">SQLi (tautology)</button>
+            <button class="btn btn-sm btn-outline-danger example-btn" data-example="' UNION SELECT username, password FROM users --">SQLi (union select)</button>
+            <button class="btn btn-sm btn-outline-danger example-btn" data-example="&lt;script&gt;alert(document.cookie)&lt;/script&gt;">XSS</button>
+            <button class="btn btn-sm btn-outline-danger example-btn" data-example="../../../../etc/passwd">Path traversal</button>
+            <button class="btn btn-sm btn-outline-danger example-btn" data-example="; cat /etc/passwd; ls -la">Command injection</button>
+            <button class="btn btn-sm btn-outline-success example-btn" data-example="/products?category=shoes&page=2">Benign</button>
+        </div>
+
+        <div class="card shadow-sm mb-3" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+            <div class="card-body">
+                <textarea id="payload-input" class="form-control" rows="4"
+                    placeholder="Paste a URL, query string, or payload here..."
+                    style="background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color);"></textarea>
+                <button id="analyze-btn" class="btn btn-primary mt-3">
+                    <i class="fas fa-play me-1"></i>Analyze
+                </button>
+            </div>
+        </div>
+
+        <div class="pipeline" id="pipeline">
+            <div class="pipeline-stage skipped" id="stage-ip"><i class="fas fa-ban"></i>IP Block<br><small>N/A for pasted text</small></div>
+            <div class="pipeline-stage skipped" id="stage-rate"><i class="fas fa-tachometer-alt"></i>Rate Limit<br><small>N/A for pasted text</small></div>
+            <div class="pipeline-stage" id="stage-rules"><i class="fas fa-shield-alt"></i>Rules</div>
+            <div class="pipeline-stage skipped" id="stage-plugins"><i class="fas fa-puzzle-piece"></i>Plugins<br><small>IP/UA-based, N/A</small></div>
+            <div class="pipeline-stage" id="stage-ml"><i class="fas fa-brain"></i>ML Classifier</div>
+        </div>
+
+        <div class="card shadow-sm" id="result-panel" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+            <div class="card-body">
+                <h5 id="result-verdict" class="mb-3"></h5>
+                <div id="result-details" class="small text-muted"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('payload-input').value = btn.dataset.example;
+            });
+        });
+
+        function resetPipeline() {
+            ['stage-rules', 'stage-ml'].forEach(id => {
+                const el = document.getElementById(id);
+                el.classList.remove('passed', 'caught');
+            });
+        }
+
+        document.getElementById('analyze-btn').addEventListener('click', () => {
+            const payload = document.getElementById('payload-input').value;
+            if (!payload.trim()) return;
+
+            resetPipeline();
+            const resultPanel = document.getElementById('result-panel');
+            const verdictEl = document.getElementById('result-verdict');
+            const detailsEl = document.getElementById('result-details');
+
+            fetch('/api/demo-analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        verdictEl.innerHTML = `<span class="text-danger">Error: ${data.error}</span>`;
+                        detailsEl.textContent = '';
+                        resultPanel.style.display = 'block';
+                        return;
+                    }
+
+                    const rulesEl = document.getElementById('stage-rules');
+                    const mlEl = document.getElementById('stage-ml');
+
+                    if (data.layer === 'rules') {
+                        rulesEl.classList.add('caught');
+                    } else {
+                        rulesEl.classList.add('passed');
+                        if (data.layer === 'ml') {
+                            mlEl.classList.add('caught');
+                        } else {
+                            mlEl.classList.add('passed');
+                        }
+                    }
+
+                    if (data.blocked) {
+                        verdictEl.innerHTML = `<span class="text-danger"><i class="fas fa-ban me-2"></i>BLOCKED</span> — ${data.reason}`;
+                    } else {
+                        verdictEl.innerHTML = `<span class="text-success"><i class="fas fa-check-circle me-2"></i>ALLOWED</span> — passed all layers`;
+                    }
+
+                    let details = '';
+                    if (data.rule_id) {
+                        details += `Matched rule ID: <code>${data.rule_id}</code><br>`;
+                    }
+                    if (data.ml) {
+                        details += `ML threats: <code>${JSON.stringify(data.ml.threats)}</code><br>`;
+                        details += `ML confidence: <code>${data.ml.confidence.toFixed(3)}</code>`;
+                    } else if (!data.rule_id) {
+                        details += 'ML model unavailable in this environment (no trained .joblib present).';
+                    }
+                    detailsEl.innerHTML = details;
+                    resultPanel.style.display = 'block';
+                })
+                .catch(err => {
+                    verdictEl.innerHTML = `<span class="text-danger">Request failed: ${err}</span>`;
+                    resultPanel.style.display = 'block';
+                });
+        });
+    </script>
+</body>
+
+</html>

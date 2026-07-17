@@ -149,6 +149,61 @@ def save_settings():
 def dashboard():
     return render_template('dashboard.html')
 
+
+@app.route('/demo')
+def demo():
+    return render_template('demo.html')
+
+
+@app.route('/api/demo-analyze', methods=['POST'])
+def demo_analyze():
+    """Run a pasted payload through the same decision pipeline live traffic
+    goes through (rules -> ML), without needing a real backend request.
+    Plugins are skipped here since they key off IP/User-Agent, not payload
+    content, so they have nothing meaningful to evaluate against pasted text.
+    """
+    try:
+        data = request.json or {}
+        payload = (data.get('payload') or '').strip()
+        if not payload:
+            return jsonify({'error': 'payload is required'}), 400
+
+        rule_id = rule_engine.evaluate_text(payload)
+        if rule_id:
+            return jsonify({
+                'blocked': True,
+                'layer': 'rules',
+                'reason': f'Rule: {rule_id}',
+                'rule_id': rule_id,
+                'ml': None,
+            })
+
+        ml_result = None
+        blocked = False
+        reason = 'Allowed'
+        if _text_predictor is not None:
+            threats, confidence_scores = _text_predictor.predict_request(payload, [], {})
+            is_malicious = any(k != 'valid' for k in threats.keys())
+            confidence = max(
+                (c for label, c in confidence_scores.items() if label != 'valid'), default=0.0
+            ) if is_malicious else confidence_scores.get('valid', 1.0)
+            threshold = WAF_SETTINGS.get('ml_model', {}).get('confidence_threshold', 0.7)
+            ml_result = {'threats': threats, 'confidence_scores': confidence_scores, 'confidence': confidence}
+            if is_malicious and confidence >= threshold:
+                blocked = True
+                reason = 'Blocked by ML model'
+
+        return jsonify({
+            'blocked': blocked,
+            'layer': 'ml' if blocked else 'none',
+            'reason': reason,
+            'rule_id': None,
+            'ml': ml_result,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/stats')
 def get_stats():
     """Get real-time WAF statistics"""
@@ -895,10 +950,12 @@ stats_thread = threading.Thread(target=broadcast_stats, daemon=True)
 stats_thread.start()
 
 if __name__ == '__main__':
+    # Render (and similar PaaS) inject PORT and require the service to bind to it.
+    port = int(os.environ.get('PORT') or os.environ.get('DASHBOARD_PORT', 5001))
     socketio.run(
         app,
         host=os.environ.get('DASHBOARD_HOST', '0.0.0.0'),
-        port=int(os.environ.get('DASHBOARD_PORT', 5001)),
+        port=port,
         debug=False,
     )
 

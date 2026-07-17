@@ -313,4 +313,6 @@ def waf_filter():
 def proxy(path):
     return forward_to_backend(path)
 if __name__ == "__main__":
-    app.run(host=os.environ.get("WAF_HOST", "0.0.0.0"), port=int(os.environ.get("WAF_PORT", 5000)))
+    # Render (and similar PaaS) inject PORT and require the service to bind to it.
+    port = int(os.environ.get("PORT") or os.environ.get("WAF_PORT", 5000))
+    app.run(host=os.environ.get("WAF_HOST", "0.0.0.0"), port=port)

@@ -1,38 +1,9 @@
-"""Tests for the /api/model-health drift-monitoring endpoint (waf/dashboard.py)."""
-import json
-import sys
+"""Tests for the /api/model-health drift-monitoring endpoint (waf/dashboard.py).
+
+The dashboard_client fixture lives in tests/conftest.py so test_demo.py can
+reuse it too.
+"""
 from datetime import datetime, timezone
-
-import pytest
-
-
-@pytest.fixture(scope="module")
-def dashboard_client(monkeypatch_module, tmp_path_factory):
-    settings_file = tmp_path_factory.mktemp("dashboard_settings") / "waf_settings.json"
-    settings_file.write_text(json.dumps({
-        "rate_limiting": {"enabled": True, "max_requests": 100, "window_seconds": 60, "block_time": 5},
-        "ml_model": {"enabled": True, "confidence_threshold": 0.7},
-        "plugins": {"block_admin": True, "block_ip": True, "block_user_agent": True},
-        "rules": {"enabled": True, "auto_update": False},
-    }))
-    monkeypatch_module.setenv("WAF_SETTINGS_FILE", str(settings_file))
-    monkeypatch_module.setenv("MONGODB_URI", "mongodb://localhost:27017")
-
-    sys.modules.pop("dashboard", None)
-    import dashboard as dashboard_module  # waf/dashboard.py, importable via tests/conftest.py's sys.path setup
-
-    dashboard_module.app.config.update(TESTING=True)
-    with dashboard_module.app.test_client() as client:
-        client.application_module = dashboard_module
-        yield client
-
-
-@pytest.fixture(scope="module")
-def monkeypatch_module():
-    from _pytest.monkeypatch import MonkeyPatch
-    mp = MonkeyPatch()
-    yield mp
-    mp.undo()
 
 
 def test_compute_drift_unavailable_without_baseline_for_active_model():
