@@ -1,5 +1,7 @@
 # AegisVault
 
+[![CI](https://github.com/Ali-Sherazii/AegisVault/actions/workflows/ci.yml/badge.svg)](https://github.com/Ali-Sherazii/AegisVault/actions/workflows/ci.yml)
+
 **A Machine Learning Based Web Application Firewall**
 
 AegisVault is an intelligent, layered Web Application Firewall (WAF) that combines traditional rule-based security with trained machine learning models to detect and block malicious HTTP traffic in real time. It operates as a reverse proxy, inspecting every incoming request before it reaches the backend application.
