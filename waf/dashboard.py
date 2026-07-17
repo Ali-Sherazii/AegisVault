@@ -957,5 +957,10 @@ if __name__ == '__main__':
         host=os.environ.get('DASHBOARD_HOST', '0.0.0.0'),
         port=port,
         debug=False,
+        # Werkzeug's dev server refuses to run without this flag outside of
+        # `flask run`/debug mode. Acceptable for this project's scope (an
+        # admin dashboard, not a hardened internet-facing service); swap for
+        # gunicorn+eventlet if that changes (see README's Future Work).
+        allow_unsafe_werkzeug=True,
     )
 

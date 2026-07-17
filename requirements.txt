@@ -3,9 +3,12 @@ requests
 flask-socketio
 pymongo
 pyyaml
-scikit-learn
-numpy
-pandas
-joblib
+# Pinned to match the environment waf/Training/train.py actually trains
+# with - scikit-learn pickles aren't guaranteed compatible across versions,
+# so serving must match training (see InconsistentVersionWarning otherwise).
+scikit-learn==1.7.2
+numpy==2.2.6
+pandas==2.3.3
+joblib==1.5.2
 scapy
 psutil
