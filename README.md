@@ -21,6 +21,7 @@ AegisVault is an intelligent, layered Web Application Firewall (WAF) that combin
 - [Dataset](#dataset)
 - [Model Performance](#model-performance)
 - [Getting Started](#getting-started)
+- [Testing](#testing)
 - [Project Structure](#project-structure)
 - [API Endpoints](#api-endpoints)
 - [Industry Standards](#industry-standards)
@@ -271,6 +272,21 @@ WAF behavior is configured in `waf_settings.json`:
   "active_model": "lr"
 }
 ```
+
+---
+
+## Testing
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+The suite (`tests/`) uses `mongomock` so it never needs a real MongoDB instance:
+
+- **`test_rules.py`** — known SQLi payloads and rule-matched scan patterns against `waf/rules/rules.yaml` assert a `403`; benign requests assert allowed. Also covers the plugin layer (`block_admin`, `block_user_agent`).
+- **`test_rate_limit.py`** — rate limit trips after N requests and returns `429`; a blocked IP short-circuits before rules/ML are evaluated.
+- **`test_ml_model.py`** — known XSS/path-traversal/CMDi payloads against the trained classifier. Automatically **skipped** until a `.joblib` model exists under `waf/ml_model/waf_text/` (see [Training Models](#training-models)), so the suite stays honest about what it can currently verify.
 
 ---
 

@@ -1,0 +1,5 @@
+# Development/CI-only dependencies (not needed at inference time in production)
+-r requirements.txt
+pytest
+mongomock
+mlflow
