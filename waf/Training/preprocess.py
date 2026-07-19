@@ -38,7 +38,7 @@ NS = "{http://www.example.org/ECMLPKDD}"
 
 
 # ---------------------------------------------------------------------------
-# Cleanin helpers (ported as-is from MergeAndClean.ipynb)
+# Cleaning helpers (ported as-is from MergeAndClean.ipynb)
 # ---------------------------------------------------------------------------
 
 def unquote(text: str) -> str:
