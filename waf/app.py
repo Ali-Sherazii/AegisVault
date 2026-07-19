@@ -10,7 +10,7 @@ from proxy import forward_to_backend
 from ml_model.waf_text.predictor import WafPredictor
 import time
 
-# Graceful MongoDB initialization
+# Graceful MongoDB initialization here
 try:
     mongo_logger = MongoLogger()
     print("[WAF] MongoDB connection successful")
