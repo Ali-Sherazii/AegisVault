@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Interactive tester for saved models in waf/Training.
-
 Prompts the user for a URL and model choice, loads the chosen joblib
 model, and prints the model's prediction and class probabilities (if available).
 """
