@@ -413,6 +413,24 @@ the same Dockerfile used locally. Render has no native MongoDB add-on, so it nee
    image first (train it via [Training Models](#training-models) — `.joblib` files aren't gitignored from the
    Docker build context, only from git, so `docker build` picks them up if present when you build/push).
 
+### Troubleshooting deploys (Render, Northflank, or any Docker PaaS)
+
+Lessons learned deploying this from scratch:
+
+- **"Dockerfile Path" fields want a file, not a directory.** If a platform's UI shows a Dockerfile Path input
+  pre-filled with `.`, that's ambiguous/wrong — set it explicitly to `Dockerfile` (the build *context* directory
+  can correctly be `.`, but the Dockerfile path itself needs to name the actual file).
+- **Health checks**: point any "Health Check Path" field at `/healthz` — all three services expose it (added
+  specifically because deploy UIs kept asking for one and there was nothing to point at).
+- **`PORT` env var**: most PaaS platforms inject their own `PORT` and expect the app to bind to it. All three
+  entrypoints already prefer `PORT` over their service-specific var (`WAF_PORT`/`DASHBOARD_PORT`/`BACKEND_PORT`),
+  so you shouldn't need to configure this manually.
+- **Free tiers vary a lot on whether they require a card up front**, even for genuinely $0 usage — this changes
+  often enough that it's not worth listing specifics here. If one platform's card verification keeps failing,
+  that's frequently a bank-side issue (mismatched billing country, international/online transactions disabled by
+  default, or a temporary fraud lock after repeated attempts) rather than something wrong with this project's
+  config — worth a quick call to your bank before troubleshooting the deploy further.
+
 ---
 
 ## Project Structure
