@@ -17,6 +17,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
+    healthCheckPath: /healthz
     envVars:
       - key: SERVICE
         value: backend
@@ -27,6 +28,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
+    healthCheckPath: /healthz
     envVars:
       - key: SERVICE
         value: waf
@@ -46,6 +48,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
+    healthCheckPath: /healthz
     envVars:
       - key: SERVICE
         value: dashboard
