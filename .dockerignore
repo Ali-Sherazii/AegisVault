@@ -22,4 +22,9 @@ waf/Training/*.ipynb
 tests/
 .pytest_cache/
 
+# MLflow local tracking store/artifacts (waf/Training/train.py) - never
+# needed in the image, only bloats the build context sent to the daemon.
+mlruns/
+mlflow.db
+
 *.md
