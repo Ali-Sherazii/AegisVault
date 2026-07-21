@@ -7,7 +7,7 @@
   },
   "ml_model": {
     "enabled": true,
-    "confidence_threshold": 0.7
+    "confidence_threshold": 0.8
   },
   "plugins": {
     "block_admin": true,
