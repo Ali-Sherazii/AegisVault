@@ -138,6 +138,12 @@ def get_dynamic_settings():
     return settings
 
 
+@app.route('/healthz')
+def healthz():
+    """Lightweight health check for platform probes (Render, Docker, Northflank, ...)."""
+    return jsonify({'status': 'ok'}), 200
+
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 def manage_settings_api():
     """Expose settings via API so frontend can update the shared settings file.
@@ -177,6 +183,12 @@ def waf_filter():
     settings = get_dynamic_settings()
     # Allow settings API to bypass WAF checks so the dashboard can update configuration
     if request.path.startswith('/api/settings'):
+        return
+
+    # Allow health checks to bypass WAF checks (rate limiting, rules, ML) so
+    # platform health probes (Render, Docker, Northflank, ...) never get
+    # blocked or counted against rate limits.
+    if request.path == '/healthz':
         return
     
     ip = request.headers.get("X-Forwarded-For", request.remote_addr)

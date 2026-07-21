@@ -8,6 +8,10 @@ app = Flask(__name__)
 def home():
     return "Welcome to the REAL backend!"
 
+@app.route("/healthz")
+def healthz():
+    return {"status": "ok"}, 200
+
 @app.route("/search")
 def search():
     return "Search endpoint reached."

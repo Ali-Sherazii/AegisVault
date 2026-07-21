@@ -150,6 +150,12 @@ def dashboard():
     return render_template('dashboard.html')
 
 
+@app.route('/healthz')
+def healthz():
+    """Lightweight health check for platform probes (Render, Docker, Northflank, ...)."""
+    return jsonify({'status': 'ok'}), 200
+
+
 @app.route('/demo')
 def demo():
     return render_template('demo.html')
