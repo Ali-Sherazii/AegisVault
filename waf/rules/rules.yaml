@@ -7,19 +7,5 @@ rules:
   description: Block SQL injection attempts
   id: block_sql_injection
   pattern: (union|select|insert|delete|drop).*(?:from|where)
-- action: block
-  description: heehehe
-  id: '121'
-  pattern: shaheer<3
-- action: block
-  description: hehehe
-  id: '12'
-  pattern: shaheer</3
-- action: block
-  description: ff
-  id: heheh
-  pattern: ef
-- action: block
-  description: injection
-  id: '1'
-  pattern: 1=1
+
+
